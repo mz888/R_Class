@@ -1,0 +1,89 @@
+---
+title: "HW4"
+author: "Mike Zhu"
+date: "9/12/2021"
+output: rmarkdown::github_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+loans <- read.csv("https://finances.worldbank.org/api/views/efin-cagm/rows.csv?accessType=DOWNLOAD")
+```
+
+### Part 1
+
+**De-duplicate the dataset. What is the unique record ID? Is it in fact unique to each row? If not, what might be the reason?**
+
+The unique record ID would seem to be Project.Number. It is not unique to each row, perhaps because the project name can change over time.
+
+```{r}
+loans <- mutate(loans, dups = duplicated(loans))
+
+dedupe <- loans %>% distinct()
+print(length(unique(loans$Project.Number)) / nrow(loans))
+
+loans %>% group_by(Project.Number) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count)) %>%
+  head(5) %>%
+  print()
+
+loans %>% filter(Project.Number == 24374) %>%
+  print()
+```
+
+### Part 2
+
+**Create a table that shows the number of NAs, empty strings (""), and 0's for the following columns:**
+**Industry, Department, Product.Line**
+
+```{r}
+loans %>% select(Industry, Department, Product.Line) %>%
+  gather("cat", "value") %>%
+  group_by(cat) %>%
+  summarise(na_count = sum(is.na(value)),
+            zero_count = sum(value == "0"),
+            empty_count = sum(value == ""))
+            
+```
+
+### Part 3
+
+Does there seem to be any outliers in the column IFC.investment.for.Loan.Million...USD.? Explain how you are defining an outlier (i.e., "X is an outlier if it is greater/less than y"). Drop any rows with an outlier that fits your definition.
+
+There does seem to be outliers, judging by the box plot. I define an outlier as a number greater than the 95th percentile on the column.
+
+```{r}
+ggplot(loans) +
+  geom_boxplot(mapping = aes(y = IFC.investment.for.Loan.Million...USD.))
+
+print(quantile(loans$IFC.investment.for.Loan.Million...USD., 0.95, na.rm=TRUE))
+
+loans <- loans %>% filter(IFC.investment.for.Loan.Million...USD. <= quantile(IFC.investment.for.Loan.Million...USD., 0.95, na.rm=TRUE))
+```
+
+
+### Part 4
+
+Create a new variable called Project.ID that combines Project.Name and Project.Number. Check that Project.ID is unique to each row.
+
+```{r}
+loans <- loans %>% unite("Project.ID", c(Project.Name, Project.Number))
+```
+
+### Part 5
+
+Evaluate a dataset of your choice for the data quality dimensions below (you may use the same dataset as your presentation). Read the documentation for your dataset and rate each quality dimension as Low/Medium/High and cite specific details from the documentation to support your rating.
+
+Choice of dataset: DOHMH New York City Restaurant Inspection Results
+
+**Completeness:** Medium. Only active restaurants are included in this dataset. Few inspections were done during much of 2020 due to COVID.
+
+**Timeliness:** High. The dataset is updated daily. 
+
+**Accuracy:** Medium. Inspections may not be an unbiased sample of restaurants in NYC. Moreover, we don't know whether grades and violations actually correlate with health variables we may care about more, such as food-borne illness caused by restaurants.
+
