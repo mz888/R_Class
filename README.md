@@ -1,2 +1,2 @@
-# NYU_R_Class
+R_Class
 Sample repo
