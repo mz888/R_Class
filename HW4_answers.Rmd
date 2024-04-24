@@ -24,7 +24,6 @@ The unique record ID would seem to be Project.Number. It is not unique to each r
 loans <- mutate(loans, dups = duplicated(loans))
 
 dedupe <- loans %>% distinct()
-print(length(unique(loans$Project.Number)) / nrow(loans))
 
 loans %>% group_by(Project.Number) %>%
   summarise(count = n()) %>%
