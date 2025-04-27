@@ -1,0 +1,276 @@
+---
+title: "HW5 - R for Public Policy"
+author: 'Julia Kim'
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, results='markup')
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+```
+
+## Exploratory Data Analysis: {Electric Consumption and Costs}
+
+### Research Question
+
+**Motivating question:** "How can NYC policymakers incentivize or regulate building owners to reduce their electricity consumption and/or shift their electricity usage to off-peak hours in order to decrease overall energy usage and costs for both the city and consumers?"
+
+Sub-questions: 
+What period of the year are electricity prices the highest? 
+What level of consumption achieves peak electricity charges? 
+Are electricity prices charged fairly over all boroughs?
+What other potential explanatory variables can we see in the data? 
+(Eg. Other Charges, Location)
+
+Results/Conclusion (based on univariate and multivariate analysis): 
+NYC electric consumption has a positive relationship with current charges and kWh charges, however current charges have a stronger positive relationship which suggests that other charges are highly influencing the overall sum of the current charges. One of the limitations of this analysis is that we are unable to know what Other.charges consists of, however, these charges could include taxes, regulatory fees, service fees, or other charges related to the delivery and maintenance of the electricity infrastructure. Therefore, a feasible avenue to reduce overall current charges is to tackle energy infrastructure and thus efficiency. 
+
+Furthermore, the analysis shows that most bills fall under GOV/NYC/068 and GOV/NYC/068 TOD which are both rating classes that charge at a variable rate based on the time of day they use electricity and it allows for different rates to be charged during peak and off-peak hours. Additionally, the analysis shows that there is an increase in electric consumption in the months of July-August causing a "summer peak". 
+
+Therefore, taking into account rating classes, there a few different policies can be implemented to mitigate the "summer peak". One policy is to implement time-of-use (TOU) pricing differently throughout the year and further encourage more buildings to be classified under this pricing mechanism as there is a significant amount of buildings that continue to pay fixed rates. By charging more during peak hours, customers are incentivised to shift their electricity usage to off-peak hours, which can help reduce peak demand. In the same vein, implementing demand response programs can incentivize customers to reduce their electricity usage during peak hours in exchange for lower rates or other benefits.
+
+Secondly, as mentioned before, by implementing energy efficiency measures, such as improving insulation or installing energy-efficient appliances, customers can reduce their energy usage during peak hours without sacrificing comfort or productivity. Thirdly, when it comes to the grid, some options may be to increase renewable energy sources to help reduce the need for fossil-fuel based power plants during peak hours. By increasing renewable energy sources, the grid can be more resilient to peak demand periods. Lastly, increase energy storage to store excess energy during off-peak hours and release it during peak hours; thus the grid can better handle peak demand periods.
+
+Through this analysis it was also evident that different boroughs had differing distributions in their charges, therefore, it is also important to consider how policies should be tailored to the specific needs and characteristics of each borough. One example of this could be to implement building codes and standards that require new buildings to meet higher energy efficiency standards and peak demand reduction measures. They could also offer incentives for building owners who retrofit their existing buildings to meet these standards. Through this policy NYC could require building owners to meet certain energy efficiency standards that are more suitable for each specific borough. 
+
+#Data Quality Issues:
+#Uniqueness:
+Rating:Medium
+The dataset comes from NYC Open Data and they use data provided by New York City Housing Authority (NYCHA), however, after deduplicating I found that 15827 rows were duplicated. 
+
+#Timeliness:
+Rating: High
+The dataset reflects the state of the world in a timely manner, it records the service start date, service end date, the month that it is billed and the current dataset has data up to February 2023. The timestamps in the dataset are very clear, it records the day/month/year of every service start and end date and further summarizes the revenue month by month/year. The last date the dataset was updated was April 11, 2023. 
+
+#Validity:
+Rating:High
+The electric consumption data values recorded the quantity by kWh and kW and the units were clearly stated. Additionally the dataset provides kWh charges, kW charges, other charges and current charges which allows for a more thorough analysis of the data. 
+
+#Consistency:
+Rating: Medium
+The majority of the data does match other similar datasets, however, there is a big chunk of missing data from the year 2011 and 2018. Therefore, this tells us that there is a possibility that there are a few inconsistencies when compared to other datasets. 
+
+##  [Electric Consumption and Cost (2010 - Feb 2023)]
+```{r load_data}
+
+electric_consumption <- Electric_Consumption_And_Cost__2010_._Feb_2023_
+
+#NOTE:I imported the dataset into R after downloading it from the link below! 
+#Data Source: https://data.cityofnewyork.us/Housing-Development/Electric-Consumption-And-Cost-2010-Feb-2023-/jr24-e7cr/explore/query/SELECT%0A%20%20%60development_name%60%2C%0A%20%20%60borough%60%2C%0A%20%20%60account_name%60%2C%0A%20%20%60location%60%2C%0A%20%20%60meter_amr%60%2C%0A%20%20%60meter_scope%60%2C%0A%20%20%60tds%60%2C%0A%20%20%60edp%60%2C%0A%20%20%60rc_code%60%2C%0A%20%20%60funding_source%60%2C%0A%20%20%60amp%60%2C%0A%20%20%60vendor_name%60%2C%0A%20%20%60umis_bill_id%60%2C%0A%20%20%60revenue_month%60%2C%0A%20%20%60service_start_date%60%2C%0A%20%20%60service_end_date%60%2C%0A%20%20%60days%60%2C%0A%20%20%60meter_number%60%2C%0A%20%20%60estimated%60%2C%0A%20%20%60current_charges%60%2C%0A%20%20%60rate_class%60%2C%0A%20%20%60bill_analyzed%60%2C%0A%20%20%60consumption_kwh%60%2C%0A%20%20%60kwh_charges%60%2C%0A%20%20%60consumption_kw%60%2C%0A%20%20%60kw_charges%60%2C%0A%20%20%60other_charges%60%0AORDER%20BY%20%60revenue_month%60%20DESC%20NULL%20LAST/page/filter
+
+```
+
+### Data Cleaning
+```{r data_cleaning}
+
+#Remove duplicates
+dedupe_electric_consumption <- electric_consumption %>% distinct()
+
+#Check that the deduplication worked as expected
+print(nrow(electric_consumption) - nrow(dedupe_electric_consumption))
+
+dedupe_electric_consumption %>% group_by(UMIS.BILL.ID, RC.Code, Meter.Number, Revenue.Month, AMP..) %>%
+  summarise(rows = n(), .groups = "drop") %>%
+  arrange(desc(rows)) %>%
+  filter(UMIS.BILL.ID != "")
+
+#Filtering for the whole entire row 
+any_duplicate_rows <- any(duplicated(dedupe_electric_consumption) | duplicated(dedupe_electric_consumption, fromLast = TRUE))
+
+```
+
+### Univariate Analysis 
+```{r outlier_analysis}
+
+# Calculate quartiles for KWH.Charges and Current.Charges
+q1_kwh <- quantile(dedupe_electric_consumption$KWH.Charges, 0.25, na.rm = TRUE)
+q3_kwh <- quantile(dedupe_electric_consumption$KWH.Charges, 0.75, na.rm = TRUE)
+iqr_kwh <- q3_kwh - q1_kwh
+lower_kwh <- q1_kwh - 1.5*iqr_kwh
+upper_kwh <- q3_kwh + 1.5*iqr_kwh
+
+q1_current <- quantile(dedupe_electric_consumption$Current.Charges, 0.25, na.rm = TRUE)
+q3_current <- quantile(dedupe_electric_consumption$Current.Charges, 0.75, na.rm = TRUE)
+iqr_current <- q3_current - q1_current
+lower_current <- q1_current - 1.5*iqr_current
+upper_current <- q3_current + 1.5*iqr_current
+
+#Remove outliers and FHA and Non Development Facility out of Borough Column 
+dedupe_electric_consumption_borough <- dedupe_electric_consumption %>%
+  filter(Borough != 'FHA' & Borough != 'NON DEVELOPMENT FACILITY',
+         KWH.Charges >= lower_kwh,
+         KWH.Charges <= upper_kwh,
+         Current.Charges >= lower_current,
+         Current.Charges <= upper_current)
+
+#Boxplot for Borough vs. kWh Charges
+ggplot(dedupe_electric_consumption_borough, aes(x = Borough, y = KWH.Charges)) +
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0, 6500)) +
+  labs(x = "Borough", y = "kWh Charges ($)", title = "NYC kWh Charges for Electric Consumption by Borough")
+
+#Boxplot for Borough vs. Current Charges
+ggplot(dedupe_electric_consumption_borough, aes(x = Borough, y = Current.Charges)) +
+  geom_boxplot() +
+  coord_cartesian(ylim = c(0, 12000)) +
+  labs(x = "Borough", y = "kWh Charges ($)", title = "NYC Current Charges for Electric Consumption by Borough")
+
+```
+
+*There is missing data from 2011 and 2018.
+*There are clear peaks in the current charges in the middle of the year for all of the years recorded. 
+*The 2022 Bar Chart suggests that the months between June-August have the highest average current charges
+```{r mean_electricity_charge_vs_time}
+
+#Calculate the mean current charges over revenue month
+electric_consumption_summary <- dedupe_electric_consumption %>%
+  group_by(Revenue.Month) %>%
+  summarise(mean_current_rev = mean(Current.Charges, na.rm = TRUE),
+            median_current_rev = median(Current.Charges, na.rm = TRUE),
+            sd_current_rev = sd(Current.Charges, na.rm = TRUE))
+
+# Convert Revenue.Month column to Date object
+electric_consumption_summary$Revenue.Month <- as.Date(paste0(electric_consumption_summary$Revenue.Month, "-01"))
+
+# Bar Chart of Mean Current Charges Over Time
+ggplot(electric_consumption_summary, aes(x = Revenue.Month, y = mean_current_rev)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme(axis.text.x = element_text(size = 10, angle = 45, hjust = 1)) +
+  labs(title = "NYC Mean Current Charges for Electric Consumption Over Time", x = "Date in Years", y = "Mean Current Charges ($)")
+
+
+#Looking at the distribution by Service End Date
+dedupe_electric_consumption$Service.End.Date <- as.Date(dedupe_electric_consumption$Service.End,Date, format = "%m/%d/%Y")
+
+#calculate the mean Current Charges vs. Service End Date
+electric_consumption_summary <- dedupe_electric_consumption %>%
+  group_by(Service.End.Date) %>%
+  summarise(mean_current_ser = mean(Current.Charges, na.rm = TRUE),
+            median_current_ser = median(Current.Charges, na.rm = TRUE),
+            sd_current_ser = sd(Current.Charges, na.rm = TRUE))
+
+#Bar Chart of Electricity Charges in 2022
+ggplot(electric_consumption_summary, aes(x = Service.End.Date, y = mean_current_ser)) +
+ geom_bar(stat = "identity", fill = "orange", width = 10) +
+  scale_x_date(limits = as.Date(c("2022-01-01", "2022-12-31")), date_labels= "%Y/%m") +
+  theme(axis.text.x = element_text(size = 10)) +
+  labs(title = "NYC Mean Current Charges for Electric Consumption in 2022", x = "Date in Months", y = "Mean Current Charges ($)")
+
+```
+
+
+*Most bills fall under GOV/NYC/062, GOV/NYC/068, GOV/NYC/068 TOD, and GOV/NYC/069
+GOV/NYC/062: This rating class is for government agencies in New York City that are charged at a fixed rate based on their energy usage.
+
+GOV/NYC/068: This rating class is for government agencies in New York City that are charged at a variable rate based on the time of day they use electricity.
+
+GOV/NYC/068 TOD: This rating class is similar to GOV/NYC/068, but also includes a Time Of Day (TOD) component that allows for different rates to be charged during peak and off-peak hours.
+
+GOV/NYC/069: This rating class is for government agencies in New York City that have a demand charge component in addition to their energy usage charge. This means that they are charged not only for the amount of electricity they use, but also for the highest amount of electricity they use at any one time during the billing period.
+
+```{r univariate_analysis}
+#Distribution of Rate Class
+ggplot(count(dedupe_electric_consumption, Rate.Class), aes(x = Rate.Class, y = n)) +
+  geom_bar(stat = "identity") +
+   theme(axis.text.x = element_text(size = 4, angle = 45)) +
+  labs(x = "Rate Class", y = "Count", title = "NYC Electric Bill Rate Class")
+
+```
+
+### Multivariate Analysis
+
+*From this scatterplot, we can conclude that electric consumption has a positive relationship with both  current charges and kWh charges. 
+```{r univariate_analysis1}
+
+#Scatterplot to see the distrbution between Electric Consumption vs. kWh Charges & Current Charges
+ggplot(dedupe_electric_consumption, mapping = aes(x = Consumption..KWH.)) +
+  geom_point(mapping = aes(y = KWH.Charges, color = "KWH Charges"), na.rm = TRUE) +
+  geom_point(mapping = aes(y = Current.Charges, color = "Current Charges"), na.rm = TRUE) +
+  ylim(0, 60000) +
+  xlim (0,1250000) +
+  geom_smooth(mapping = aes(y = KWH.Charges, "red" = "KWH Charges"), 
+              method = "lm", se = FALSE, na.rm = TRUE) +
+  geom_smooth(mapping = aes(y = Current.Charges, "blue" = "Current Charges"), 
+              method = "lm", se = FALSE, na.rm = TRUE) +
+  scale_color_manual(name = "Type of Charges", 
+              values = c("KWH Charges" = "orange", "Current Charges" = "darkgreen")) +
+  labs(x = "Consumption (KWH)", y = "Charges ($)", title = "NYC Electric Consumption in kWh vs. Charges")
+
+
+```
+
+*All boroughs have positive relationships between their electricity charge and consumption
+```{r univariate_analysis2}
+
+#Removing FHA and Non Development Facility out of Borough Column
+dedupe_electric_consumption <- dedupe_electric_consumption %>%
+  filter(Borough != 'FHA' & Borough != 'NON DEVELOPMENT FACILITY')
+  
+#Scatterplot to analyze differences in Boroughs
+ggplot(dedupe_electric_consumption, mapping = aes(x = Consumption..KWH., y = KWH.Charges, color = Borough)) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(method='lm', color="red") +
+  xlim(0, 200000) + 
+  ylim(0, 8000) +
+  labs(title = "NYC Electric Consumption vs. Charge (KWH) by Borough",
+       x = "Consumption (KWH)",
+       y = "KWH Charges ($)") +
+  theme(axis.text.x = element_text(size = 4, angle=45)) +
+  scale_color_discrete(name = "Borough") +
+  facet_wrap(~ Borough, scales = "free_y")
+
+```
+
+
+*Based on the density curve, Staten Island pays higher electric charges. This suggests that electricity charges may not be charged fairly between all boroughs. 
+```{r density}
+#Transforming Service.End.Date column to a date format
+dedupe_electric_consumption$Service.End.Date <- as.Date(dedupe_electric_consumption$Service.End,Date, format = "%m/%d/%Y")
+
+#Density Curve of Electric Consumption vs. kWh Charges by Borough Over Time
+ggplot(dedupe_electric_consumption, mapping = aes(x = Current.Charges, fill = Borough)) +
+  geom_density(alpha = 0.4) +
+  ylim(0, 0.0003) +
+  xlim(0, 50000) +
+  labs(x = "KWH Charges ($)", y = "Density", title = "Density Plot of KWH Charges by Borough") +
+  scale_fill_discrete(name = "Borough")
+
+```
+
+*Other charges for electric consumption are sometimes fixed, however, they also have a positive relationship with electric consumption in all boroughs
+*Therefore, other charges may impact the relationship between consumption an electricity charges due to their variability
+```{r multivariate_analysis}
+
+#Removing FHA and Non Development Facility out of Borough Column
+dedupe_electric_consumption_filtered <- dedupe_electric_consumption %>%
+  filter(Borough != 'FHA' & Borough != 'NON DEVELOPMENT FACILITY')
+
+#Bar Chart showing the relationship between Consumption in kWh and Other Charges
+ggplot(dedupe_electric_consumption_filtered, mapping = aes(x = Consumption..KWH., y = Other.charges)) +
+  geom_point() +
+  theme(axis.text.x = element_text(size = 4, angle = 45)) +
+  ylim(0,80000) +
+  xlim(0, 400000) +
+  labs(x = "Consumption (KWH)", y = "Other Charges ($)", 
+       title = "NYC Other Charges for Electric Consumption") +
+  geom_smooth(method = "lm", se = FALSE)
+
+#Bar Chart showing the relationship between Consumption in kWh and Other Charges by Borough
+  ggplot(dedupe_electric_consumption_filtered, mapping = aes(x = Consumption..KWH., y = Other.charges, color = Borough)) +
+  geom_point() +
+  theme(axis.text.x = element_text(size = 4, angle = 45)) +
+  ylim(0,35000) +
+  xlim(0, 200000) +
+  labs(x = "Consumption (KWH)", y = "Other Charges ($)", 
+       title = "NYC Other Charges for Electric Consumption by Borough") +
+  geom_smooth(method = "lm", se = FALSE, color="red") +
+  facet_wrap(~ Borough)
+
+```
+
